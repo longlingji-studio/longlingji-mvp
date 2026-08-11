@@ -41,28 +41,32 @@ function toModelFact(fact: ContentFact): ModelFact | null {
 
 function toModelEvidence(evidence: Evidence): ModelEvidence | null {
   if (evidence.type === "choice") {
-    if (evidence.verification !== "verified" || evidence.value === undefined) {
+    if (evidence.verification !== "verified") {
+      return null;
+    }
+    if (evidence.value === undefined) {
       return null;
     }
     return { id: evidence.id, type: evidence.type, value: evidence.value };
   }
 
   if (evidence.type === "verified_transcript") {
-    if (
-      evidence.verification !== "verified" ||
-      evidence.value === undefined ||
-      evidence.confidence === undefined ||
-      evidence.confidence < VERIFIED_TRANSCRIPT_CONFIDENCE
-    ) {
+    if (evidence.verification !== "verified") {
+      return null;
+    }
+    if (evidence.value === undefined) {
+      return null;
+    }
+    if (evidence.confidence === undefined) {
+      return null;
+    }
+    if (evidence.confidence < VERIFIED_TRANSCRIPT_CONFIDENCE) {
       return null;
     }
     return { id: evidence.id, type: evidence.type, value: evidence.value };
   }
 
-  if (
-    evidence.verification === "uploaded_only" ||
-    evidence.verification === "verified"
-  ) {
+  if (["uploaded_only", "verified"].includes(evidence.verification)) {
     // P0 exposes only the existence of media, never an unverified interpretation.
     return { id: evidence.id, type: evidence.type };
   }

@@ -1,0 +1,19 @@
+{
+  "name": "@longlingji/agent-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "pnpm --filter @longlingji/agent-core build && tsc -p tsconfig.json && node dist/server.js",
+    "start": "node dist/server.js",
+    "test": "pnpm --filter @longlingji/agent-core build && vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@longlingji/agent-core": "workspace:*",
+    "zod": "^4.0.0"
+  }
+}

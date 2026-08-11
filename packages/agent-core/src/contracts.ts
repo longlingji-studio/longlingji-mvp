@@ -123,23 +123,11 @@ export const modelDraftOutputSchema = z
   })
   .strict();
 
-export const fallbackReasonSchema = z.enum([
-  "none",
-  "no_usable_evidence",
-  "provider_error",
-  "provider_timeout",
-  "invalid_output",
-  "missing_reference",
-  "policy_violation",
-]);
-
 export const agentResultSchema = modelDraftOutputSchema.extend({
   schemaVersion: z.literal("agent-response.v1"),
   requestId: stableIdSchema,
   providerName: z.string().trim().min(1).max(80),
   promptVersion: z.string().trim().min(1).max(80),
-  fallbackUsed: z.boolean(),
-  fallbackReason: fallbackReasonSchema,
 });
 
 export type SpotFeedbackRequestInput = z.input<
@@ -150,5 +138,4 @@ export type Evidence = z.infer<typeof evidenceSchema>;
 export type ContentFact = z.infer<typeof contentFactSchema>;
 export type SafetyCode = z.infer<typeof safetyCodeSchema>;
 export type ModelDraftOutput = z.infer<typeof modelDraftOutputSchema>;
-export type FallbackReason = z.infer<typeof fallbackReasonSchema>;
 export type AgentResult = z.infer<typeof agentResultSchema>;

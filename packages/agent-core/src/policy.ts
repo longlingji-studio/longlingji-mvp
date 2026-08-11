@@ -83,11 +83,19 @@ export function validateDraftPolicy(
     (reference) => !factIds.has(reference),
   );
   const hasMissingMemoryRef =
-    draft.memoryCandidate?.evidenceRefs.some(
-      (reference) => !evidenceIds.has(reference),
-    ) ?? false;
+    draft.memoryCandidate === null
+      ? false
+      : draft.memoryCandidate.evidenceRefs.some(
+          (reference) => !evidenceIds.has(reference),
+        );
 
-  if (hasMissingEvidenceRef || hasMissingFactRef || hasMissingMemoryRef) {
+  const hasMissingReference = [
+    hasMissingEvidenceRef,
+    hasMissingFactRef,
+    hasMissingMemoryRef,
+  ].some(Boolean);
+
+  if (hasMissingReference) {
     return {
       ok: false,
       reason: "missing_reference",

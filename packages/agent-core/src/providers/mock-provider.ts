@@ -8,8 +8,8 @@ export interface MockProviderConfig {
   readonly response:
     | unknown
     | ((request: ModelGenerationRequest) => unknown | Promise<unknown>);
-  readonly delayMs?: number;
-  readonly name?: string;
+  readonly delayMs: number;
+  readonly name: string;
 }
 
 async function waitForDelay(
@@ -43,7 +43,7 @@ export class MockProvider implements ModelProvider {
   public readonly calls: ModelGenerationRequest[] = [];
 
   public constructor(private readonly config: MockProviderConfig) {
-    this.name = config.name ?? "mock-provider";
+    this.name = config.name;
   }
 
   public async generate(
@@ -51,7 +51,7 @@ export class MockProvider implements ModelProvider {
     options: ModelProviderOptions,
   ): Promise<unknown> {
     this.calls.push(request);
-    await waitForDelay(this.config.delayMs ?? 0, options.signal);
+    await waitForDelay(this.config.delayMs, options.signal);
     return typeof this.config.response === "function"
       ? this.config.response(request)
       : this.config.response;

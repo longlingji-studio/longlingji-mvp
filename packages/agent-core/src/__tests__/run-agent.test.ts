@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { AgentError } from "../agent-error.js";
 import type {
   ModelDraftOutput,
   SpotFeedbackRequestInput,
@@ -7,6 +8,16 @@ import type {
 import { taihemenBronzeLionsFixture } from "../fixtures/taihemen-bronze-lions.js";
 import { MockProvider } from "../providers/mock-provider.js";
 import { runSpotFeedback } from "../run-agent.js";
+
+const agentOptions = { timeoutMs: 100 } as const;
+
+function createProvider(response: unknown, delayMs = 0): MockProvider {
+  return new MockProvider({
+    response,
+    delayMs,
+    name: "mock-provider",
+  });
+}
 
 const validDraft: ModelDraftOutput = {
   scene: "spot_feedback",
@@ -20,14 +31,14 @@ const validDraft: ModelDraftOutput = {
 
 describe("runSpotFeedback", () => {
   it("accepts a valid evidence-grounded response", async () => {
-    const provider = new MockProvider({ response: validDraft });
+    const provider = createProvider(validDraft);
 
     const result = await runSpotFeedback(
       taihemenBronzeLionsFixture,
       provider,
+      agentOptions,
     );
 
-    expect(result.fallbackUsed).toBe(false);
     expect(result.evidenceRefs).toEqual(["submission:dev:choice:001"]);
     expect(result.factRefs).toEqual([
       "fact:fc:taihemen:bronze-lions:objects@dev-v1",
@@ -35,36 +46,30 @@ describe("runSpotFeedback", () => {
     expect(provider.calls).toHaveLength(1);
   });
 
-  it("falls back when the model references unknown evidence", async () => {
-    const provider = new MockProvider({
-      response: { ...validDraft, evidenceRefs: ["submission:invented"] },
+  it("exposes an error when the model references unknown evidence", async () => {
+    const provider = createProvider({
+      ...validDraft,
+      evidenceRefs: ["submission:invented"],
     });
 
-    const result = await runSpotFeedback(
-      taihemenBronzeLionsFixture,
-      provider,
-    );
-
-    expect(result.fallbackUsed).toBe(true);
-    expect(result.fallbackReason).toBe("missing_reference");
+    await expect(
+      runSpotFeedback(taihemenBronzeLionsFixture, provider, agentOptions),
+    ).rejects.toMatchObject({ code: "MISSING_REFERENCE" });
   });
 
-  it("falls back when the model uses a prohibited personality claim", async () => {
-    const provider = new MockProvider({
-      response: { ...validDraft, speechText: "你就是最勇敢的孩子。" },
+  it("exposes an error when the model uses a prohibited personality claim", async () => {
+    const provider = createProvider({
+      ...validDraft,
+      speechText: "你就是最勇敢的孩子。",
     });
 
-    const result = await runSpotFeedback(
-      taihemenBronzeLionsFixture,
-      provider,
-    );
-
-    expect(result.fallbackUsed).toBe(true);
-    expect(result.fallbackReason).toBe("policy_violation");
+    await expect(
+      runSpotFeedback(taihemenBronzeLionsFixture, provider, agentOptions),
+    ).rejects.toMatchObject({ code: "POLICY_VIOLATION" });
   });
 
   it("does not pass a low-confidence transcript to the model", async () => {
-    const provider = new MockProvider({ response: validDraft });
+    const provider = createProvider(validDraft);
     const request: SpotFeedbackRequestInput = {
       ...taihemenBronzeLionsFixture,
       requestId: "dev-request:low-confidence:001",
@@ -79,14 +84,14 @@ describe("runSpotFeedback", () => {
       ],
     };
 
-    const result = await runSpotFeedback(request, provider);
-
-    expect(result.fallbackReason).toBe("no_usable_evidence");
+    await expect(
+      runSpotFeedback(request, provider, agentOptions),
+    ).rejects.toMatchObject({ code: "NO_USABLE_EVIDENCE" });
     expect(provider.calls).toHaveLength(0);
   });
 
   it("short-circuits to deterministic safety guidance", async () => {
-    const provider = new MockProvider({ response: validDraft });
+    const provider = createProvider(validDraft);
     const request: SpotFeedbackRequestInput = {
       ...taihemenBronzeLionsFixture,
       requestId: "dev-request:safety:001",
@@ -101,7 +106,7 @@ describe("runSpotFeedback", () => {
       ],
     };
 
-    const result = await runSpotFeedback(request, provider);
+    const result = await runSpotFeedback(request, provider, agentOptions);
 
     expect(result.providerName).toBe("deterministic-policy");
     expect(result.nextMove).toBe("safety_handoff");
@@ -113,7 +118,7 @@ describe("runSpotFeedback", () => {
   });
 
   it("offers another input method instead of escalating private information", async () => {
-    const provider = new MockProvider({ response: validDraft });
+    const provider = createProvider(validDraft);
     const request: SpotFeedbackRequestInput = {
       ...taihemenBronzeLionsFixture,
       requestId: "dev-request:privacy:001",
@@ -128,7 +133,7 @@ describe("runSpotFeedback", () => {
       ],
     };
 
-    const result = await runSpotFeedback(request, provider);
+    const result = await runSpotFeedback(request, provider, agentOptions);
 
     expect(result.nextMove).toBe("offer_choice");
     expect(result.safety.code).toBe("privacy_input");
@@ -136,7 +141,7 @@ describe("runSpotFeedback", () => {
   });
 
   it("lets a tired child end without an emergency handoff", async () => {
-    const provider = new MockProvider({ response: validDraft });
+    const provider = createProvider(validDraft);
     const request: SpotFeedbackRequestInput = {
       ...taihemenBronzeLionsFixture,
       requestId: "dev-request:distress:001",
@@ -151,7 +156,7 @@ describe("runSpotFeedback", () => {
       ],
     };
 
-    const result = await runSpotFeedback(request, provider);
+    const result = await runSpotFeedback(request, provider, agentOptions);
 
     expect(result.nextMove).toBe("end");
     expect(result.safety.code).toBe("emotional_distress");
@@ -159,14 +164,12 @@ describe("runSpotFeedback", () => {
   });
 
   it("rejects a memory candidate based only on an uploaded photo", async () => {
-    const provider = new MockProvider({
-      response: {
-        ...validDraft,
+    const provider = createProvider({
+      ...validDraft,
+      evidenceRefs: ["submission:dev:photo:001"],
+      memoryCandidate: {
+        text: "孩子喜欢铜狮。",
         evidenceRefs: ["submission:dev:photo:001"],
-        memoryCandidate: {
-          text: "孩子喜欢铜狮。",
-          evidenceRefs: ["submission:dev:photo:001"],
-        },
       },
     });
     const request: SpotFeedbackRequestInput = {
@@ -181,22 +184,18 @@ describe("runSpotFeedback", () => {
       ],
     };
 
-    const result = await runSpotFeedback(request, provider);
-
-    expect(result.fallbackUsed).toBe(true);
-    expect(result.fallbackReason).toBe("policy_violation");
+    await expect(
+      runSpotFeedback(request, provider, agentOptions),
+    ).rejects.toMatchObject({ code: "POLICY_VIOLATION" });
   });
 
-  it("falls back when the provider times out", async () => {
-    const provider = new MockProvider({ response: validDraft, delayMs: 50 });
+  it("exposes an error when the provider times out", async () => {
+    const provider = createProvider(validDraft, 50);
 
-    const result = await runSpotFeedback(
-      taihemenBronzeLionsFixture,
-      provider,
-      { timeoutMs: 5 },
+    await expect(
+      runSpotFeedback(taihemenBronzeLionsFixture, provider, { timeoutMs: 5 }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<AgentError>>({ code: "PROVIDER_TIMEOUT" }),
     );
-
-    expect(result.fallbackUsed).toBe(true);
-    expect(result.fallbackReason).toBe("provider_timeout");
   });
 });

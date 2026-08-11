@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>珑灵记 Agent 开发测试台</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #22211f;
+        background: #f4f0e9;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main {
+        width: min(1180px, calc(100% - 40px));
+        margin: 40px auto;
+      }
+      header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      h1 { margin: 0 0 8px; font-size: 30px; }
+      p { margin: 0; color: #6b655d; line-height: 1.6; }
+      .badge {
+        border: 1px solid #b7a58d;
+        border-radius: 999px;
+        padding: 7px 12px;
+        color: #725b3c;
+        background: #fffaf2;
+        white-space: nowrap;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 18px;
+      }
+      section {
+        min-width: 0;
+        border: 1px solid #ded7cd;
+        border-radius: 16px;
+        background: #fff;
+        padding: 20px;
+        box-shadow: 0 8px 30px rgb(69 55 38 / 6%);
+      }
+      .section-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      h2 { margin: 0; font-size: 17px; }
+      textarea, pre {
+        width: 100%;
+        min-height: 520px;
+        margin: 0;
+        border: 1px solid #d8d2c9;
+        border-radius: 10px;
+        padding: 14px;
+        background: #fbfaf8;
+        color: #26231f;
+        font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      textarea:focus {
+        outline: 2px solid #b9854f;
+        outline-offset: 1px;
+      }
+      .actions { display: flex; gap: 10px; margin-top: 14px; }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 9px;
+        padding: 11px 16px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:disabled { cursor: wait; opacity: 0.55; }
+      #submit { color: #fff; background: #8c572b; }
+      #reload { color: #55483a; background: #eee8df; }
+      #status { font: 12px ui-monospace, monospace; color: #6b655d; }
+      pre.error { color: #9b241b; background: #fff4f1; border-color: #e9b8b1; }
+      @media (max-width: 820px) {
+        .grid { grid-template-columns: 1fr; }
+        header { align-items: flex-start; flex-direction: column; }
+        textarea, pre { min-height: 380px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>珑灵记 Agent 开发测试台</h1>
+          <p>只验证后端契约、Agent 逻辑和错误，不代表正式 App UI。</p>
+        </div>
+        <span class="badge">development_only</span>
+      </header>
+
+      <div class="grid">
+        <section>
+          <div class="section-title">
+            <h2>请求 JSON</h2>
+            <span id="status">正在加载样例</span>
+          </div>
+          <textarea id="request" spellcheck="false" aria-label="Agent 请求 JSON"></textarea>
+          <div class="actions">
+            <button id="submit" type="button">调用 Agent</button>
+            <button id="reload" type="button">恢复太和门样例</button>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-title">
+            <h2>原始响应</h2>
+            <span>错误不会被替换成正常回答</span>
+          </div>
+          <pre id="response">等待请求。</pre>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="/console.js"></script>
+  </body>
+</html>

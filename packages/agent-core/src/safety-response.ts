@@ -1,5 +1,8 @@
 import {
   type AgentResult,
+  companionResultSchema,
+  type CompanionReplyRequest,
+  type CompanionResult,
   type SafetyCode,
   type SpotFeedbackRequest,
 } from "./contracts.js";
@@ -51,4 +54,40 @@ export function buildSafetyResult(
     safety: { level: content.level, code },
     providerName: "deterministic-policy",
   };
+}
+
+export function buildCompanionSafetyResult(
+  request: CompanionReplyRequest,
+  code: Exclude<SafetyCode, "none">,
+): CompanionResult {
+  const content = SAFETY_RESPONSES[code];
+
+  return companionResultSchema.parse({
+    schemaVersion: "agent-response.v1",
+    requestId: request.requestId,
+    promptVersion: "yuanlong.companion-reply.v1",
+    scene: "companion_reply",
+    speechText: content.speechText,
+    knowledgeStatus: "not_needed",
+    knowledgeRefs: [],
+    memoryRefs: [],
+    nextMove: content.nextMove,
+    memoryProposal: null,
+    safety: { level: content.level, code },
+    embodiment: {
+      state: "reacting",
+      emotionId: code === "stop_and_find_adult" ? "concerned" : "thinking",
+      intensity: content.level === "critical" ? 1 : 0.6,
+      attentionTarget: "child",
+      speechSync: "during",
+      hapticPattern: code === "stop_and_find_adult" ? "soft_long" : "soft_short",
+      sfxId: "none",
+    },
+    providerName: "deterministic-policy",
+    memoryDecision: {
+      status: "not_requested",
+      reason: null,
+      recordId: null,
+    },
+  });
 }

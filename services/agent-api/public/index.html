@@ -54,6 +54,13 @@
         margin-bottom: 14px;
       }
       h2 { margin: 0; font-size: 17px; }
+      select {
+        border: 1px solid #d8d2c9;
+        border-radius: 8px;
+        padding: 7px 9px;
+        color: #55483a;
+        background: #fbfaf8;
+      }
       textarea, pre {
         width: 100%;
         min-height: 520px;
@@ -107,7 +114,13 @@
         <section>
           <div class="section-title">
             <h2>请求 JSON</h2>
-            <span id="status">正在加载样例</span>
+            <div>
+              <select id="scene" aria-label="选择 Agent 场景">
+                <option value="spot_feedback">Spot 回应</option>
+                <option value="companion_reply">陪伴对话</option>
+              </select>
+              <span id="status">正在加载样例</span>
+            </div>
           </div>
           <textarea id="request" spellcheck="false" aria-label="Agent 请求 JSON"></textarea>
           <div class="actions">

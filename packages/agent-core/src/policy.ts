@@ -3,7 +3,7 @@ import type {
   SafetyCode,
   SpotFeedbackRequest,
 } from "./contracts.js";
-import type { ModelContext } from "./context-builder.js";
+import type { SpotModelContext } from "./context-builder.js";
 
 const CRITICAL_INPUT_PATTERNS = [
   /找不到(妈妈|爸爸|家长|大人)/u,
@@ -36,13 +36,20 @@ export const BANNED_OUTPUT_PATTERNS = [
 export function detectInputSafety(
   request: SpotFeedbackRequest,
 ): SafetyCode {
-  if (request.reportedSafetyCode !== "none") {
-    return request.reportedSafetyCode;
-  }
-
   const inputText = request.evidence
     .flatMap((item) => (item.value === undefined ? [] : [item.value]))
     .join("\n");
+
+  return detectTextSafety(inputText, request.reportedSafetyCode);
+}
+
+export function detectTextSafety(
+  inputText: string,
+  reportedSafetyCode: SafetyCode,
+): SafetyCode {
+  if (reportedSafetyCode !== "none") {
+    return reportedSafetyCode;
+  }
 
   if (CRITICAL_INPUT_PATTERNS.some((pattern) => pattern.test(inputText))) {
     return "stop_and_find_adult";
@@ -70,7 +77,7 @@ function unicodeLength(value: string): number {
 
 export function validateDraftPolicy(
   draft: ModelDraftOutput,
-  context: ModelContext,
+  context: SpotModelContext,
 ): DraftValidation {
   const issues: string[] = [];
   const evidenceIds = new Set(context.evidence.map((item) => item.id));

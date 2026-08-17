@@ -1,4 +1,6 @@
 import type {
+  MemoryRecord,
+  PersonalityState,
   ContentFact,
   Evidence,
   SpotFeedbackRequest,
@@ -17,7 +19,7 @@ export interface ModelEvidence {
   readonly value?: string;
 }
 
-export interface ModelContext {
+export interface SpotModelContext {
   readonly scene: "spot_feedback";
   readonly contentMode: SpotFeedbackRequest["contentMode"];
   readonly childAgeBand: SpotFeedbackRequest["childAgeBand"];
@@ -30,6 +32,26 @@ export interface ModelContext {
     text: string;
     evidenceRefs: readonly string[];
   }> | null;
+}
+
+export type ModelContext = SpotModelContext | CompanionModelContext;
+
+export interface CompanionModelContext {
+  readonly scene: "companion_reply";
+  readonly householdId: string;
+  readonly childProfileId: string;
+  readonly characterInstanceId: string;
+  readonly childAgeBand: SpotFeedbackRequest["childAgeBand"];
+  readonly locale: string;
+  readonly input: {
+    readonly evidenceId: string;
+    readonly type: "choice" | "verified_transcript";
+    readonly text: string;
+    readonly confidence?: number;
+  };
+  readonly facts: readonly ModelFact[];
+  readonly memories: readonly MemoryRecord[];
+  readonly personality: PersonalityState;
 }
 
 function toModelFact(fact: ContentFact): ModelFact | null {
@@ -76,7 +98,7 @@ function toModelEvidence(evidence: Evidence): ModelEvidence | null {
 
 export function buildModelContext(
   request: SpotFeedbackRequest,
-): ModelContext {
+): SpotModelContext {
   const facts = request.facts
     .map(toModelFact)
     .filter((fact): fact is ModelFact => fact !== null);

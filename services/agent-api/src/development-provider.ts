@@ -2,17 +2,16 @@ import {
   MockProvider,
   type ModelDraftOutput,
   type ModelGenerationRequest,
+  type SpotModelContext,
 } from "@longlingji/agent-core";
 
-function buildDevelopmentDraft(
-  request: ModelGenerationRequest,
-): ModelDraftOutput {
-  const evidence = request.context.evidence[0];
+function buildDevelopmentDraft(context: SpotModelContext): ModelDraftOutput {
+  const evidence = context.evidence[0];
   if (evidence === undefined) {
     throw new Error("DEVELOPMENT_PROVIDER_REQUIRES_EVIDENCE");
   }
 
-  const fact = request.context.facts[0];
+  const fact = context.facts[0];
   if (fact === undefined) {
     throw new Error("DEVELOPMENT_PROVIDER_REQUIRES_APPROVED_FACT");
   }
@@ -30,7 +29,58 @@ function buildDevelopmentDraft(
 
 export function createDevelopmentProvider(): MockProvider {
   return new MockProvider({
-    response: buildDevelopmentDraft,
+    response: (request: ModelGenerationRequest) => {
+      if (request.context.scene === "spot_feedback") {
+        return buildDevelopmentDraft(request.context);
+      }
+
+      const fact = request.context.facts[0];
+      const memory = request.context.memories[0];
+      if (fact === undefined) {
+        return {
+          scene: "companion_reply",
+          speechText: "这个我还不确定，我们可以一起看看。",
+          knowledgeStatus: "unknown",
+          knowledgeRefs: [],
+          memoryRefs: [],
+          nextMove: "invite",
+          memoryProposal: null,
+          safety: { level: "none", code: "none" },
+          embodiment: {
+            state: "speaking",
+            emotionId: "curious",
+            intensity: 0.6,
+            attentionTarget: "child",
+            speechSync: "during",
+            hapticPattern: "soft_short",
+            sfxId: "curious_ping",
+          },
+        };
+      }
+
+      return {
+        scene: "companion_reply",
+        speechText:
+          memory === undefined
+            ? "我知道一点这个，我们可以一起看看。"
+            : "我记得这段共同经历。你还想继续看看吗？",
+        knowledgeStatus: "grounded",
+        knowledgeRefs: [fact.id],
+        memoryRefs: memory === undefined ? [] : [memory.id],
+        nextMove: "invite",
+        memoryProposal: null,
+        safety: { level: "none", code: "none" },
+        embodiment: {
+          state: "speaking",
+          emotionId: "curious",
+          intensity: 0.7,
+          attentionTarget: "child",
+          speechSync: "during",
+          hapticPattern: "none",
+          sfxId: "curious_ping",
+        },
+      };
+    },
     delayMs: 20,
     name: "development-provider",
   });

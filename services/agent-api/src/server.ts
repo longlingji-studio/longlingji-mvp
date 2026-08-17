@@ -4,6 +4,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createAgentApi } from "./app.js";
 import { createDevelopmentProvider } from "./development-provider.js";
 import type { ApiErrorBody } from "./http-contract.js";
+import {
+  InMemoryJourneyCatalogStore,
+  InMemoryMemoryStore,
+  InMemoryQuestProgressStore,
+  companionMemoryFixture,
+  journeyCatalogFixture,
+} from "@longlingji/agent-core";
 
 const SERVER_HOST = "127.0.0.1";
 const SERVER_PORT = 8787;
@@ -113,9 +120,18 @@ function writeTransportError(error: unknown, outgoing: ServerResponse): void {
   outgoing.end(JSON.stringify(body));
 }
 
+function createDevelopmentMemoryStore(): InMemoryMemoryStore {
+  const store = new InMemoryMemoryStore();
+  store.write(companionMemoryFixture);
+  return store;
+}
+
 const handleApiRequest = createAgentApi({
   provider: createDevelopmentProvider(),
   timeoutMs: AGENT_TIMEOUT_MS,
+  memoryStore: createDevelopmentMemoryStore(),
+  journeyStore: new InMemoryJourneyCatalogStore(journeyCatalogFixture),
+  questProgressStore: new InMemoryQuestProgressStore(),
 });
 
 const server = createServer((request, response) => {

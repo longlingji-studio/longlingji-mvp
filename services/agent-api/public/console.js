@@ -1,11 +1,20 @@
-const FIXTURE_URL = "/api/v1/development/spot-feedback-fixture";
-const SPOT_FEEDBACK_URL = "/api/v1/agent/spot-feedback";
+const SCENES = {
+  spot_feedback: {
+    fixtureUrl: "/api/v1/development/spot-feedback-fixture",
+    agentUrl: "/api/v1/agent/spot-feedback",
+  },
+  companion_reply: {
+    fixtureUrl: "/api/v1/development/companion-reply-fixture",
+    agentUrl: "/api/v1/agent/companion-reply",
+  },
+};
 
 const requestEditor = document.querySelector("#request");
 const responseViewer = document.querySelector("#response");
 const submitButton = document.querySelector("#submit");
 const reloadButton = document.querySelector("#reload");
 const statusLabel = document.querySelector("#status");
+const sceneSelector = document.querySelector("#scene");
 
 function requireElement(element, selector) {
   if (element === null) {
@@ -19,6 +28,16 @@ const viewer = requireElement(responseViewer, "#response");
 const submit = requireElement(submitButton, "#submit");
 const reload = requireElement(reloadButton, "#reload");
 const status = requireElement(statusLabel, "#status");
+const scene = requireElement(sceneSelector, "#scene");
+let activeScene = scene.value;
+
+function currentScene() {
+  const config = SCENES[activeScene];
+  if (config === undefined) {
+    throw new Error(`Unknown development scene: ${activeScene}`);
+  }
+  return config;
+}
 
 function showResponse(httpStatus, body, elapsedMs) {
   viewer.classList.toggle("error", httpStatus >= 400);
@@ -36,7 +55,7 @@ async function readJson(response) {
 
 async function loadFixture() {
   status.textContent = "正在加载样例";
-  const response = await fetch(FIXTURE_URL, { cache: "no-store" });
+  const response = await fetch(currentScene().fixtureUrl, { cache: "no-store" });
   const body = await readJson(response);
   if (!response.ok) {
     throw new Error(JSON.stringify(body));
@@ -52,7 +71,7 @@ async function submitRequest() {
 
   try {
     const requestBody = JSON.parse(editor.value);
-    const response = await fetch(SPOT_FEEDBACK_URL, {
+    const response = await fetch(currentScene().agentUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(requestBody),
@@ -70,6 +89,14 @@ async function submitRequest() {
 }
 
 submit.addEventListener("click", () => void submitRequest());
+scene.addEventListener("change", () => {
+  activeScene = scene.value;
+  void loadFixture().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    showResponse(0, { code: "FIXTURE_LOAD_ERROR", message }, 0);
+    status.textContent = "样例加载失败";
+  });
+});
 reload.addEventListener("click", () => {
   void loadFixture().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

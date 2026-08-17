@@ -1,9 +1,15 @@
 import {
   AgentError,
+  companionReplyFixture,
+  runCompanionReply,
+  runQuestProgress,
   runSpotFeedback,
   taihemenBronzeLionsFixture,
+  type JourneyCatalogStore,
+  type QuestProgressStore,
   type ModelProvider,
 } from "@longlingji/agent-core";
+import type { MemoryStore } from "@longlingji/agent-core";
 import { ZodError } from "zod";
 
 import { ApiError } from "./api-error.js";
@@ -17,6 +23,9 @@ import {
 export interface AgentApiDependencies {
   readonly provider: ModelProvider;
   readonly timeoutMs: number;
+  readonly memoryStore: MemoryStore;
+  readonly journeyStore: JourneyCatalogStore;
+  readonly questProgressStore: QuestProgressStore;
 }
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -109,6 +118,27 @@ function assertMethod(request: Request, expectedMethod: "GET" | "POST"): void {
   }
 }
 
+function requiredQuery(url: URL, name: string): string {
+  const value = url.searchParams.get(name);
+  if (value === null) {
+    throw new ApiError(
+      400,
+      "INVALID_REQUEST",
+      `Missing query parameter: ${name}`,
+      [],
+    );
+  }
+  if (value.length === 0) {
+    throw new ApiError(
+      400,
+      "INVALID_REQUEST",
+      `Query parameter is empty: ${name}`,
+      [],
+    );
+  }
+  return value;
+}
+
 export function createAgentApi(
   dependencies: AgentApiDependencies,
 ): (request: Request) => Promise<Response> {
@@ -136,11 +166,106 @@ export function createAgentApi(
         );
       }
 
+      if (url.pathname === API_ROUTES.developmentCompanionFixture) {
+        assertMethod(request, "GET");
+        return jsonResponse(
+          { status: "ok", data: companionReplyFixture },
+          200,
+        );
+      }
+
+      if (url.pathname === API_ROUTES.developmentJourneyCatalog) {
+        assertMethod(request, "GET");
+        const zones = dependencies.journeyStore.listZones();
+        const landmarks = zones.flatMap((zone) =>
+          dependencies.journeyStore.listLandmarks(zone.id),
+        );
+        const spots = landmarks.flatMap((landmark) =>
+          dependencies.journeyStore.listSpots(landmark.id),
+        );
+        const quests = spots.flatMap((spot) =>
+          dependencies.journeyStore.listQuests(spot.id),
+        );
+        return jsonResponse(
+          { status: "ok", data: { zones, landmarks, spots, quests } },
+          200,
+        );
+      }
+
+      if (url.pathname === API_ROUTES.journeyZones) {
+        assertMethod(request, "GET");
+        return jsonResponse(
+          { status: "ok", data: { items: dependencies.journeyStore.listZones() } },
+          200,
+        );
+      }
+
+      if (url.pathname === API_ROUTES.journeyLandmarks) {
+        assertMethod(request, "GET");
+        const zoneId = requiredQuery(url, "zoneId");
+        return jsonResponse(
+          {
+            status: "ok",
+            data: { items: dependencies.journeyStore.listLandmarks(zoneId) },
+          },
+          200,
+        );
+      }
+
+      if (url.pathname === API_ROUTES.journeySpots) {
+        assertMethod(request, "GET");
+        const landmarkId = requiredQuery(url, "landmarkId");
+        return jsonResponse(
+          {
+            status: "ok",
+            data: { items: dependencies.journeyStore.listSpots(landmarkId) },
+          },
+          200,
+        );
+      }
+
+      if (url.pathname === API_ROUTES.journeyQuests) {
+        assertMethod(request, "GET");
+        const spotId = requiredQuery(url, "spotId");
+        return jsonResponse(
+          {
+            status: "ok",
+            data: { items: dependencies.journeyStore.listQuests(spotId) },
+          },
+          200,
+        );
+      }
+
+      if (url.pathname === API_ROUTES.journeyQuestProgress) {
+        assertMethod(request, "POST");
+        const input = await parseJson(request);
+        const result = runQuestProgress(
+          input,
+          (questId) => dependencies.journeyStore.getQuest(questId),
+          dependencies.questProgressStore,
+          new Date().toISOString(),
+        );
+        return jsonResponse({ status: "ok", data: result }, 200);
+      }
+
       if (url.pathname === API_ROUTES.spotFeedback) {
         assertMethod(request, "POST");
         const input = await parseJson(request);
         const result = await runSpotFeedback(input, dependencies.provider, {
           timeoutMs: dependencies.timeoutMs,
+        });
+        const body: ApiSuccessBody = { status: "ok", data: result };
+        return jsonResponse(body, 200);
+      }
+
+      if (url.pathname === API_ROUTES.companionReply) {
+        assertMethod(request, "POST");
+        const input = await parseJson(request);
+        const result = await runCompanionReply(input, dependencies.provider, {
+          timeoutMs: dependencies.timeoutMs,
+          memoryStore: dependencies.memoryStore,
+          occurredAt: new Date().toISOString(),
+          createMemoryId: () => `memory:api:${crypto.randomUUID()}`,
         });
         const body: ApiSuccessBody = { status: "ok", data: result };
         return jsonResponse(body, 200);

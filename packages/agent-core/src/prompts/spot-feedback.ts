@@ -1,4 +1,4 @@
-import type { ModelContext } from "../context-builder.js";
+import type { SpotModelContext } from "../context-builder.js";
 import type { ModelGenerationRequest } from "../model-provider.js";
 
 export const SPOT_FEEDBACK_PROMPT_VERSION = "yuanlong.spot-feedback.v1";
@@ -23,7 +23,7 @@ export const SPOT_FEEDBACK_SYSTEM_PROMPT = `你是元珑，一个陪伴 6–10 �
 }`;
 
 export function buildSpotFeedbackGenerationRequest(
-  context: ModelContext,
+  context: SpotModelContext,
 ): ModelGenerationRequest {
   return {
     promptVersion: SPOT_FEEDBACK_PROMPT_VERSION,

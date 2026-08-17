@@ -1,13 +1,28 @@
 import {
   AGENT_ERROR_CODES,
   agentResultSchema,
+  companionResultSchema,
+  journeyCatalogSchema,
+  landmarkSchema,
+  questSchema,
+  questProgressRecordSchema,
+  spotSchema,
+  zoneSchema,
 } from "@longlingji/agent-core";
 import { z } from "zod";
 
 export const API_ROUTES = {
   health: "/api/v1/health",
   developmentFixture: "/api/v1/development/spot-feedback-fixture",
+  developmentCompanionFixture: "/api/v1/development/companion-reply-fixture",
+  developmentJourneyCatalog: "/api/v1/development/journey-catalog",
+  journeyZones: "/api/v1/journey/zones",
+  journeyLandmarks: "/api/v1/journey/landmarks",
+  journeySpots: "/api/v1/journey/spots",
+  journeyQuests: "/api/v1/journey/quests",
+  journeyQuestProgress: "/api/v1/journey/quest-progress",
   spotFeedback: "/api/v1/agent/spot-feedback",
+  companionReply: "/api/v1/agent/companion-reply",
 } as const;
 
 const HTTP_ERROR_CODES = [
@@ -29,7 +44,16 @@ export const apiErrorCodeSchema = z.enum(API_ERROR_CODES);
 export const apiSuccessSchema = z
   .object({
     status: z.literal("ok"),
-    data: agentResultSchema,
+    data: z.union([
+      agentResultSchema,
+      companionResultSchema,
+      journeyCatalogSchema,
+      z.object({ items: z.array(zoneSchema) }).strict(),
+      z.object({ items: z.array(landmarkSchema) }).strict(),
+      z.object({ items: z.array(spotSchema) }).strict(),
+      z.object({ items: z.array(questSchema) }).strict(),
+      questProgressRecordSchema,
+    ]),
   })
   .strict();
 

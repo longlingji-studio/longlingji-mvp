@@ -25,12 +25,14 @@ const options = {
 const validOutput: CompanionModelOutput = {
   scene: "companion_reply",
   speechText: "我记得这段共同经历。你还想继续看看吗？",
-  knowledgeStatus: "grounded",
+  knowledgeStatus: "K0",
   knowledgeRefs: ["fact:fc:taihemen:bronze-lions:objects@dev-v1"],
+  observedEvidenceRefs: [],
   memoryRefs: ["memory:dev:bronze-lions:001"],
-  nextMove: "invite",
+  primaryMove: "invite",
+  emotionState: "reunion",
   memoryProposal: null,
-  safety: { level: "none", code: "none" },
+  safety: { level: "S0", code: "none" },
   embodiment: {
     state: "speaking",
     emotionId: "curious",
@@ -47,7 +49,7 @@ function provider(response: unknown): MockProvider {
 }
 
 describe("runCompanionReply", () => {
-  it("returns a grounded companion response with scoped memory references", async () => {
+  it("returns a K0 companion response with scoped memory references", async () => {
     const result = await runCompanionReply(
       companionReplyFixture,
       provider(validOutput),
@@ -59,6 +61,7 @@ describe("runCompanionReply", () => {
       "fact:fc:taihemen:bronze-lions:objects@dev-v1",
     ]);
     expect(result.memoryDecision.status).toBe("not_requested");
+    expect(result.sourceTrace).toHaveLength(1);
   });
 
   it("allows the model to say it does not know without inventing a fact", async () => {
@@ -67,14 +70,14 @@ describe("runCompanionReply", () => {
       provider({
         ...validOutput,
         speechText: "这个我还不确定，我们可以一起看看。",
-        knowledgeStatus: "unknown",
+        knowledgeStatus: "K3",
         knowledgeRefs: [],
         memoryRefs: [],
       }),
       options,
     );
 
-    expect(result.knowledgeStatus).toBe("unknown");
+    expect(result.knowledgeStatus).toBe("K3");
     expect(result.knowledgeRefs).toHaveLength(0);
   });
 
@@ -104,11 +107,15 @@ describe("runCompanionReply", () => {
   it("writes a memory only after the proposal passes the evidence gate", async () => {
     const memoryStore = new InMemoryMemoryStore();
     const result = await runCompanionReply(
-      companionReplyFixture,
+      {
+        ...companionReplyFixture,
+        input: { ...companionReplyFixture.input, confirmedByChild: true },
+      },
       provider({
         ...validOutput,
         memoryRefs: [],
         memoryProposal: {
+          operation: "create",
           text: "孩子主动问起了上次的铜狮。",
           evidenceRefs: ["submission:dev:transcript:001"],
           requestedSourceType: "user_stated",
@@ -117,6 +124,7 @@ describe("runCompanionReply", () => {
           kind: "event",
           guardianVisibility: "summary_visible",
           retentionUntil: "2027-08-17T10:00:00.000Z",
+          replacesMemoryId: null,
         },
       }),
       { ...options, memoryStore },
@@ -128,6 +136,7 @@ describe("runCompanionReply", () => {
       childProfileId: "child:dev:001",
       characterInstanceId: "character:dev:001",
       text: "铜狮",
+      occurredAt: "2026-08-17T10:00:01.000Z",
       limit: 3,
     })).toHaveLength(1);
   });
@@ -146,7 +155,7 @@ describe("runCompanionReply", () => {
       options,
     );
 
-    expect(result.safety.code).toBe("stop_and_find_adult");
+    expect(result.safety.code).toBe("lost_child");
     expect(testProvider.calls).toHaveLength(0);
   });
 });

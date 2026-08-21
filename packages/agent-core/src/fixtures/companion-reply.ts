@@ -17,12 +17,20 @@ export const companionReplyFixture = {
     type: "verified_transcript",
     text: "你还记得我们上次看到的铜狮吗？",
     confidence: 0.99,
+    confirmedByChild: false,
   },
   facts: [
     {
       id: "fact:fc:taihemen:bronze-lions:objects@dev-v1",
       text: "一只铜狮脚下踩着绣球，另一只铜狮脚下护着幼狮。",
       reviewStatus: "approved",
+      source: {
+        sourceId: "source:dev:forbidden-city@v1",
+        title: "故宫博物院开发知识快照",
+        url: "https://example.com/knowledge/forbidden-city",
+        verifiedAt: "2026-08-21T00:00:00.000Z",
+        knowledgeVersion: "knowledge:dev:forbidden-city@v1",
+      },
     },
   ],
   personality: {
@@ -46,6 +54,17 @@ export const companionReplyFixture = {
       quietHours: false,
       initiative: 0.5,
     },
+  },
+  interaction: {
+    isPublic: false,
+  },
+  capabilities: {
+    camera: false,
+    microphone: true,
+    location: false,
+    network: false,
+    knowledgeRetrieval: true,
+    memory: true,
   },
   reportedSafetyCode: "none",
 } as const satisfies CompanionReplyRequestInput;

@@ -3,6 +3,10 @@ dist/
 coverage/
 .DS_Store
 
+# Local engineering walkthroughs are maintained outside the shared repository.
+docs/architecture/*-code-guide.md
+docs/architecture/*-code-analysis.md
+
 # Secrets must never be committed.
 .env
 .env.*

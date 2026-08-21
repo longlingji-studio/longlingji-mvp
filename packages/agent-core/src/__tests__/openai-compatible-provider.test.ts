@@ -23,6 +23,7 @@ const request = {
       evidenceId: "event:test:001",
       type: "choice" as const,
       text: "我看到了铜狮。",
+      confirmedByChild: false,
     },
     facts: [],
     memories: [],
@@ -33,6 +34,15 @@ const request = {
       mood: { valence: 0.7, arousal: 0.4, curiosity: 0.8, fatigue: 0.1 },
       relationship: { familiarity: 0.2, trust: 0.3, sharedExperienceCount: 1 },
       scene: { quietHours: false, initiative: 0.5 },
+    },
+    interaction: { isPublic: false },
+    capabilities: {
+      camera: false,
+      microphone: true,
+      location: false,
+      network: false,
+      knowledgeRetrieval: false,
+      memory: false,
     },
   },
 };

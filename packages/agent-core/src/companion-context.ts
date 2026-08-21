@@ -25,7 +25,16 @@ function isScopedActiveMemory(
   if (memory.characterInstanceId !== request.characterInstanceId) {
     return false;
   }
-  return memory.status === "active";
+  if (memory.status !== "active") {
+    return false;
+  }
+  if (memory.privacyLevel !== "ordinary") {
+    return false;
+  }
+  if (!request.interaction.isPublic) {
+    return true;
+  }
+  return memory.guardianVisibility === "summary_visible";
 }
 
 export function buildCompanionModelContext(
@@ -45,12 +54,14 @@ export function buildCompanionModelContext(
           evidenceId: request.input.evidenceId,
           type: request.input.type,
           text: request.input.text,
+          confirmedByChild: request.input.confirmedByChild,
         }
       : {
           evidenceId: request.input.evidenceId,
           type: request.input.type,
           text: request.input.text,
           confidence: request.input.confidence,
+          confirmedByChild: request.input.confirmedByChild,
         };
 
   return {
@@ -64,5 +75,7 @@ export function buildCompanionModelContext(
     facts,
     memories: [...scopedMemories],
     personality: request.personality,
+    interaction: request.interaction,
+    capabilities: request.capabilities,
   };
 }

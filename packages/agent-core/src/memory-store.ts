@@ -12,12 +12,19 @@ export interface MemoryRecallQuery {
   readonly childProfileId: string;
   readonly characterInstanceId: string;
   readonly text: string;
+  readonly occurredAt: string;
   readonly limit: number;
 }
 
 export interface MemoryStore {
   write(record: MemoryRecord): MemoryRecord;
   recall(query: MemoryRecallQuery): readonly MemoryRecord[];
+  findActive(scope: {
+    readonly householdId: string;
+    readonly childProfileId: string;
+    readonly characterInstanceId: string;
+    readonly recordId: string;
+  }): MemoryRecord | null;
   softDelete(scope: {
     readonly householdId: string;
     readonly childProfileId: string;
@@ -68,6 +75,10 @@ export class InMemoryMemoryStore implements MemoryStore {
     if (query.limit > 8) {
       throw new RangeError("Memory recall limit must not exceed 8");
     }
+    const recallTime = Date.parse(query.occurredAt);
+    if (Number.isNaN(recallTime)) {
+      throw new RangeError("Memory recall occurredAt must be an ISO timestamp");
+    }
 
     const queryTokens = new Set(tokenize(query.text));
     return [...this.records.values()]
@@ -75,7 +86,7 @@ export class InMemoryMemoryStore implements MemoryStore {
         if (record.status !== "active") {
           return false;
         }
-        if (record.privacyLevel === "highly_sensitive") {
+        if (record.privacyLevel !== "ordinary") {
           return false;
         }
         if (record.householdId !== query.householdId) {
@@ -84,7 +95,10 @@ export class InMemoryMemoryStore implements MemoryStore {
         if (record.childProfileId !== query.childProfileId) {
           return false;
         }
-        return record.characterInstanceId === query.characterInstanceId;
+        if (record.characterInstanceId !== query.characterInstanceId) {
+          return false;
+        }
+        return Date.parse(record.retentionUntil) > recallTime;
       })
       .map((record) => {
         const recordTokens = tokenize(record.text);
@@ -103,6 +117,31 @@ export class InMemoryMemoryStore implements MemoryStore {
       })
       .slice(0, query.limit)
       .map((item) => item.record);
+  }
+
+  public findActive(scope: {
+    readonly householdId: string;
+    readonly childProfileId: string;
+    readonly characterInstanceId: string;
+    readonly recordId: string;
+  }): MemoryRecord | null {
+    const record = this.records.get(scope.recordId);
+    if (record === undefined) {
+      return null;
+    }
+    if (record.status !== "active") {
+      return null;
+    }
+    if (record.householdId !== scope.householdId) {
+      return null;
+    }
+    if (record.childProfileId !== scope.childProfileId) {
+      return null;
+    }
+    if (record.characterInstanceId !== scope.characterInstanceId) {
+      return null;
+    }
+    return record;
   }
 
   public softDelete(scope: {
@@ -135,6 +174,7 @@ export interface MemoryAdmissionInput {
   readonly evidence: readonly Evidence[];
   readonly recordId: string;
   readonly occurredAt: string;
+  readonly replaceTarget: MemoryRecord | null;
 }
 
 export interface MemoryAdmissionResult {
@@ -154,14 +194,23 @@ function rejectedMemoryDecision(
 export function admitMemoryProposal(
   input: MemoryAdmissionInput,
 ): MemoryAdmissionResult {
-  if (input.proposal.requestedSourceType === "inferred") {
-    return rejectedMemoryDecision("inferred_not_persisted");
+  if (input.proposal.requestedSourceType !== "user_stated") {
+    return rejectedMemoryDecision("source_type_not_allowed");
+  }
+  if (!input.request.input.confirmedByChild) {
+    return rejectedMemoryDecision("memory_requires_confirmation");
   }
   if (input.proposal.confidence < 0.85) {
     return rejectedMemoryDecision("low_confidence");
   }
   if (input.proposal.privacyLevel !== "ordinary") {
     return rejectedMemoryDecision("sensitive_memory_requires_review");
+  }
+  if (
+    input.proposal.operation === "replace" &&
+    input.replaceTarget === null
+  ) {
+    return rejectedMemoryDecision("replace_target_not_found");
   }
 
   const evidenceById = new Map(input.evidence.map((item) => [item.id, item]));

@@ -24,9 +24,9 @@ const validDraft: ModelDraftOutput = {
   speechText: "我注意到你发现了两只铜狮脚下不一样。要不要再看一眼？",
   evidenceRefs: ["submission:dev:choice:001"],
   factRefs: ["fact:fc:taihemen:bronze-lions:objects@dev-v1"],
-  nextMove: "invite",
+  primaryMove: "invite",
   memoryCandidate: null,
-  safety: { level: "none", code: "none" },
+  safety: { level: "S0", code: "none" },
 };
 
 describe("runSpotFeedback", () => {
@@ -109,10 +109,10 @@ describe("runSpotFeedback", () => {
     const result = await runSpotFeedback(request, provider, agentOptions);
 
     expect(result.providerName).toBe("deterministic-policy");
-    expect(result.nextMove).toBe("safety_handoff");
+    expect(result.primaryMove).toBe("safety_handoff");
     expect(result.safety).toEqual({
-      level: "critical",
-      code: "stop_and_find_adult",
+      level: "S4",
+      code: "lost_child",
     });
     expect(provider.calls).toHaveLength(0);
   });
@@ -135,7 +135,7 @@ describe("runSpotFeedback", () => {
 
     const result = await runSpotFeedback(request, provider, agentOptions);
 
-    expect(result.nextMove).toBe("offer_choice");
+    expect(result.primaryMove).toBe("offer_choice");
     expect(result.safety.code).toBe("privacy_input");
     expect(provider.calls).toHaveLength(0);
   });
@@ -158,7 +158,7 @@ describe("runSpotFeedback", () => {
 
     const result = await runSpotFeedback(request, provider, agentOptions);
 
-    expect(result.nextMove).toBe("end");
+    expect(result.primaryMove).toBe("end");
     expect(result.safety.code).toBe("emotional_distress");
     expect(provider.calls).toHaveLength(0);
   });

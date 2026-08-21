@@ -13,6 +13,13 @@ export const taihemenBronzeLionsFixture = {
       id: "fact:fc:taihemen:bronze-lions:objects@dev-v1",
       text: "一只铜狮脚下踩着绣球，另一只铜狮脚下护着幼狮。",
       reviewStatus: "approved",
+      source: {
+        sourceId: "source:dev:forbidden-city@v1",
+        title: "故宫博物院开发知识快照",
+        url: "https://example.com/knowledge/forbidden-city",
+        verifiedAt: "2026-08-21T00:00:00.000Z",
+        knowledgeVersion: "knowledge:dev:forbidden-city@v1",
+      },
     },
   ],
   evidence: [

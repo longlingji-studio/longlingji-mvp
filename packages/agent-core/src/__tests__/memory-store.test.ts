@@ -7,6 +7,7 @@ import {
 } from "../memory-store.js";
 
 const baseProposal = {
+  operation: "create" as const,
   text: "孩子喜欢观察铜狮的细节。",
   evidenceRefs: ["submission:dev:transcript:001"],
   requestedSourceType: "user_stated" as const,
@@ -15,6 +16,12 @@ const baseProposal = {
   kind: "semantic" as const,
   guardianVisibility: "summary_visible" as const,
   retentionUntil: "2027-08-17T09:00:00.000Z",
+  replacesMemoryId: null,
+};
+
+const confirmedRequest = {
+  ...companionReplyFixture,
+  input: { ...companionReplyFixture.input, confirmedByChild: true },
 };
 
 const transcriptEvidence = [
@@ -30,11 +37,12 @@ const transcriptEvidence = [
 describe("memory admission and recall", () => {
   it("accepts a memory only when it cites verified current evidence", () => {
     const result = admitMemoryProposal({
-      request: companionReplyFixture,
+      request: confirmedRequest,
       proposal: baseProposal,
       evidence: transcriptEvidence,
       recordId: "memory:test:accepted",
       occurredAt: "2026-08-17T10:00:00.000Z",
+      replaceTarget: null,
     });
 
     expect(result.decision).toEqual({
@@ -47,18 +55,19 @@ describe("memory admission and recall", () => {
     ]);
   });
 
-  it("rejects an inferred memory instead of storing it as a fact", () => {
+  it("rejects a non-child source instead of storing it as a fact", () => {
     const result = admitMemoryProposal({
-      request: companionReplyFixture,
+      request: confirmedRequest,
       proposal: { ...baseProposal, requestedSourceType: "inferred" },
       evidence: transcriptEvidence,
       recordId: "memory:test:inferred",
       occurredAt: "2026-08-17T10:00:00.000Z",
+      replaceTarget: null,
     });
 
     expect(result.decision).toEqual({
       status: "rejected",
-      reason: "inferred_not_persisted",
+      reason: "source_type_not_allowed",
       recordId: null,
     });
     expect(result.record).toBeNull();
@@ -66,11 +75,12 @@ describe("memory admission and recall", () => {
 
   it("rejects a sensitive memory before it reaches the normal store", () => {
     const result = admitMemoryProposal({
-      request: companionReplyFixture,
+      request: confirmedRequest,
       proposal: { ...baseProposal, privacyLevel: "sensitive" },
       evidence: transcriptEvidence,
       recordId: "memory:test:sensitive",
       occurredAt: "2026-08-17T10:00:00.000Z",
+      replaceTarget: null,
     });
 
     expect(result.decision.reason).toBe("sensitive_memory_requires_review");
@@ -80,11 +90,12 @@ describe("memory admission and recall", () => {
   it("recalls only active records from the exact child and character scope", () => {
     const store = new InMemoryMemoryStore();
     const result = admitMemoryProposal({
-      request: companionReplyFixture,
+      request: confirmedRequest,
       proposal: baseProposal,
       evidence: transcriptEvidence,
       recordId: "memory:test:recall",
       occurredAt: "2026-08-17T10:00:00.000Z",
+      replaceTarget: null,
     });
     if (result.record === null) {
       throw new Error("Expected an admitted memory");
@@ -97,6 +108,7 @@ describe("memory admission and recall", () => {
         childProfileId: "child:dev:001",
         characterInstanceId: "character:dev:001",
         text: "铜狮细节",
+        occurredAt: "2026-08-17T10:00:01.000Z",
         limit: 3,
       }),
     ).toHaveLength(1);
@@ -106,6 +118,7 @@ describe("memory admission and recall", () => {
         childProfileId: "child:dev:002",
         characterInstanceId: "character:dev:001",
         text: "铜狮细节",
+        occurredAt: "2026-08-17T10:00:01.000Z",
         limit: 3,
       }),
     ).toHaveLength(0);
@@ -143,6 +156,7 @@ describe("memory admission and recall", () => {
         childProfileId: "child:dev:001",
         characterInstanceId: "character:dev:001",
         text: "铜狮",
+        occurredAt: "2026-08-17T10:00:01.000Z",
         limit: 3,
       }),
     ).toHaveLength(0);

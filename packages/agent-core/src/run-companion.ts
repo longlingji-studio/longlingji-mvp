@@ -12,7 +12,7 @@ import {
   buildCompanionReplyGenerationRequest,
   COMPANION_REPLY_PROMPT_VERSION,
 } from "./prompts/companion-reply.js";
-import { detectTextSafety } from "./policy.js";
+import { detectQuietHoursBoundary, detectTextSafety } from "./policy.js";
 import { validateCompanionDraftPolicy } from "./companion-policy.js";
 import {
   admitMemoryProposal,
@@ -75,6 +75,27 @@ function providerFailure(error: unknown): AgentError {
   return new AgentError("PROVIDER_FAILURE", message, [], { cause: error });
 }
 
+function buildSourceTrace(
+  request: ReturnType<typeof companionReplyRequestSchema.parse>,
+  knowledgeRefs: readonly string[],
+) {
+  const factsById = new Map(request.facts.map((fact) => [fact.id, fact] as const));
+  return knowledgeRefs.map((factId) => {
+    const fact = factsById.get(factId);
+    if (fact === undefined) {
+      throw new AgentError("MISSING_REFERENCE", "Knowledge source is missing", [factId]);
+    }
+    return {
+      factId,
+      sourceId: fact.source.sourceId,
+      title: fact.source.title,
+      url: fact.source.url,
+      verifiedAt: fact.source.verifiedAt,
+      knowledgeVersion: fact.source.knowledgeVersion,
+    };
+  });
+}
+
 export async function runCompanionReply(
   input: unknown,
   provider: ModelProvider,
@@ -82,10 +103,17 @@ export async function runCompanionReply(
 ): Promise<CompanionResult> {
   assertTimeout(options.timeoutMs);
   const request = companionReplyRequestSchema.parse(input);
-  const safetyCode = detectTextSafety(
+  const detectedSafetyCode = detectTextSafety(
     request.input.text,
     request.reportedSafetyCode,
   );
+  const safetyCode =
+    detectedSafetyCode === "none"
+      ? detectQuietHoursBoundary(
+          request.input.text,
+          request.personality.scene.quietHours,
+        )
+      : detectedSafetyCode;
   if (safetyCode !== "none") {
     return buildCompanionSafetyResult(request, safetyCode);
   }
@@ -107,13 +135,16 @@ export async function runCompanionReply(
     }
   }
 
-  const recalledMemories = options.memoryStore.recall({
-    householdId: request.householdId,
-    childProfileId: request.childProfileId,
-    characterInstanceId: request.characterInstanceId,
-    text: request.input.text,
-    limit: 8,
-  });
+  const recalledMemories = request.capabilities.memory
+    ? options.memoryStore.recall({
+        householdId: request.householdId,
+        childProfileId: request.childProfileId,
+        characterInstanceId: request.characterInstanceId,
+        text: request.input.text,
+        occurredAt: options.occurredAt,
+        limit: 1,
+      })
+    : [];
   const context = buildCompanionModelContext(request, recalledMemories);
   const generationRequest = buildCompanionReplyGenerationRequest(context);
   let rawOutput: unknown;
@@ -178,9 +209,26 @@ export async function runCompanionReply(
       evidence: [evidence],
       recordId: options.createMemoryId(),
       occurredAt: options.occurredAt,
+      replaceTarget:
+        parsedDraft.data.memoryProposal.operation === "replace"
+          ? options.memoryStore.findActive({
+              householdId: request.householdId,
+              childProfileId: request.childProfileId,
+              characterInstanceId: request.characterInstanceId,
+              recordId: parsedDraft.data.memoryProposal.replacesMemoryId,
+            })
+          : null,
     });
     memoryDecision = admission.decision;
     if (admission.record !== null) {
+      if (parsedDraft.data.memoryProposal.operation === "replace") {
+        options.memoryStore.softDelete({
+          householdId: request.householdId,
+          childProfileId: request.childProfileId,
+          characterInstanceId: request.characterInstanceId,
+          recordId: parsedDraft.data.memoryProposal.replacesMemoryId,
+        });
+      }
       options.memoryStore.write(admission.record);
     }
   }
@@ -192,5 +240,7 @@ export async function runCompanionReply(
     promptVersion: COMPANION_REPLY_PROMPT_VERSION,
     ...parsedDraft.data,
     memoryDecision,
+    sourceTrace: buildSourceTrace(request, parsedDraft.data.knowledgeRefs),
+    capabilityCheck: request.capabilities,
   });
 }

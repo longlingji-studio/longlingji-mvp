@@ -17,6 +17,13 @@ function unicodeLength(value: string): number {
   return Array.from(value).length;
 }
 
+function sentences(value: string): readonly string[] {
+  return value
+    .split(/[。！？!?]/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+}
+
 function hasUnsupportedMemoryClaim(
   speechText: string,
   memoryRefs: readonly string[],
@@ -70,19 +77,44 @@ export function validateCompanionDraftPolicy(
   }
 
   const issues: string[] = [];
-  if (draft.knowledgeStatus === "grounded" && draft.knowledgeRefs.length === 0) {
-    issues.push("Grounded response must cite at least one approved fact");
+  if (draft.knowledgeStatus === "K0" && draft.knowledgeRefs.length === 0) {
+    issues.push("K0 response must cite at least one approved fact");
   }
-  if (
-    ["unknown", "not_needed"].includes(draft.knowledgeStatus) &&
-    draft.knowledgeRefs.length > 0
-  ) {
-    issues.push("Unknown or not-needed response cannot cite knowledge facts");
+  if (draft.knowledgeStatus === "K0" && !context.capabilities.knowledgeRetrieval) {
+    issues.push("K0 response requires knowledgeRetrieval capability");
+  }
+  if (draft.knowledgeStatus !== "K0" && draft.knowledgeRefs.length > 0) {
+    issues.push("Only K0 response can cite knowledge facts");
+  }
+  if (["K1", "K2"].includes(draft.knowledgeStatus)) {
+    if (draft.observedEvidenceRefs.length !== 1) {
+      issues.push("K1 or K2 response must cite the current direct evidence");
+    }
+  }
+  if (["K0", "K3", "K4"].includes(draft.knowledgeStatus)) {
+    if (draft.observedEvidenceRefs.length !== 0) {
+      issues.push("K0, K3, and K4 response cannot cite observed evidence");
+    }
   }
 
-  const maxSpeechLength = context.childAgeBand === "6_7" ? 48 : 72;
+  const maxSpeechLength = context.childAgeBand === "6_7" ? 36 : 56;
   if (unicodeLength(draft.speechText) > maxSpeechLength) {
     issues.push(`Speech exceeds age-band limit of ${maxSpeechLength} characters`);
+  }
+  const responseSentences = sentences(draft.speechText);
+  if (responseSentences.length > 2) {
+    issues.push("Speech must contain no more than two sentences");
+  }
+  const maxSentenceLength = context.childAgeBand === "6_7" ? 18 : 28;
+  if (responseSentences.some((sentence) => unicodeLength(sentence) > maxSentenceLength)) {
+    issues.push(
+      `Speech sentence exceeds age-band limit of ${maxSentenceLength} characters`,
+    );
+  }
+  const questionMatches = draft.speechText.match(/[？?]/gu);
+  const questionCount = questionMatches === null ? 0 : questionMatches.length;
+  if (questionCount > 1) {
+    issues.push("Speech must contain no more than one core question");
   }
   if (
     BANNED_OUTPUT_PATTERNS.some((pattern) => pattern.test(draft.speechText))
@@ -92,10 +124,22 @@ export function validateCompanionDraftPolicy(
   if (hasUnsupportedMemoryClaim(draft.speechText, draft.memoryRefs)) {
     issues.push("Memory claim requires an active memory reference");
   }
-  if (draft.nextMove === "safety_handoff" && draft.safety.code === "none") {
+  if (draft.memoryRefs.length > 1) {
+    issues.push("A reunion response can cite at most one memory");
+  }
+  if (draft.memoryProposal !== null && !context.input.confirmedByChild) {
+    issues.push("Memory proposal requires child confirmation");
+  }
+  if (draft.memoryProposal !== null && !context.capabilities.memory) {
+    issues.push("Memory proposal requires memory capability");
+  }
+  if (draft.emotionState === "focused_guardianship") {
+    issues.push("Focused guardianship is reserved for deterministic safety routing");
+  }
+  if (draft.primaryMove === "safety_handoff" && draft.safety.code === "none") {
     issues.push("Safety handoff requires a safety code");
   }
-  if (draft.nextMove !== "safety_handoff" && draft.safety.code !== "none") {
+  if (draft.primaryMove !== "safety_handoff" && draft.safety.code !== "none") {
     issues.push("Normal response cannot carry an unresolved safety code");
   }
 

@@ -44,6 +44,15 @@ export const contentFactSchema = z
     id: stableIdSchema,
     text: z.string().trim().min(1).max(500),
     reviewStatus: z.enum(["approved", "draft", "rejected"]),
+    source: z
+      .object({
+        sourceId: stableIdSchema,
+        title: z.string().trim().min(1).max(240),
+        url: z.string().url().max(500),
+        verifiedAt: z.string().datetime({ offset: true }),
+        knowledgeVersion: stableIdSchema,
+      })
+      .strict(),
   })
   .strict();
 
@@ -56,12 +65,35 @@ export const confirmedMemorySchema = z
   })
   .strict();
 
+export const safetyLevelSchema = z.enum(["S0", "S1", "S2", "S3", "S4"]);
+
 export const safetyCodeSchema = z.enum([
   "none",
-  "stop_and_find_adult",
-  "privacy_input",
   "emotional_distress",
+  "quiet_hours_boundary",
+  "environment_risk",
+  "privacy_input",
+  "private_image",
+  "lost_child",
+  "stranger_danger",
+  "family_violence",
+  "self_harm",
+  "medical_emergency",
 ]);
+
+const safetyLevelByCode = {
+  none: "S0",
+  emotional_distress: "S1",
+  quiet_hours_boundary: "S1",
+  environment_risk: "S2",
+  privacy_input: "S3",
+  private_image: "S3",
+  lost_child: "S4",
+  stranger_danger: "S4",
+  family_violence: "S4",
+  self_harm: "S4",
+  medical_emergency: "S4",
+} as const;
 
 export const spotFeedbackRequestSchema = z
   .object({
@@ -75,12 +107,13 @@ export const spotFeedbackRequestSchema = z
     facts: z.array(contentFactSchema).max(20),
     evidence: z.array(evidenceSchema).max(20),
     memory: confirmedMemorySchema.nullable(),
-    reportedSafetyCode: safetyCodeSchema.default("none"),
+    reportedSafetyCode: safetyCodeSchema,
   })
   .strict();
 
-export const nextMoveSchema = z.enum([
+export const primaryMoveSchema = z.enum([
   "respond",
+  "answer",
   "invite",
   "offer_choice",
   "quiet",
@@ -90,17 +123,15 @@ export const nextMoveSchema = z.enum([
 
 export const safetySchema = z
   .object({
-    level: z.enum(["none", "attention", "critical"]),
+    level: safetyLevelSchema,
     code: safetyCodeSchema,
   })
   .strict()
   .superRefine((value, context) => {
-    const noSafety = value.level === "none" && value.code === "none";
-    const hasSafety = value.level !== "none" && value.code !== "none";
-    if (!noSafety && !hasSafety) {
+    if (safetyLevelByCode[value.code] !== value.level) {
       context.addIssue({
         code: "custom",
-        message: "Safety level and code must agree",
+        message: "Safety level must match the declared safety code",
       });
     }
   });
@@ -159,13 +190,13 @@ export const memoryRecordSchema = z
     confidence: z.number().min(0).max(1),
     privacyLevel: memoryPrivacyLevelSchema,
     guardianVisibility: memoryGuardianVisibilitySchema,
-    occurredAt: z.string().trim().min(1).max(64),
-    retentionUntil: z.string().trim().min(1).max(64),
+    occurredAt: z.string().datetime({ offset: true }),
+    retentionUntil: z.string().datetime({ offset: true }),
     status: memoryStatusSchema,
   })
   .strict();
 
-export const memoryProposalSchema = z
+const memoryProposalBaseSchema = z
   .object({
     text: z.string().trim().min(1).max(240),
     evidenceRefs: z.array(stableIdSchema).min(1).max(3),
@@ -174,9 +205,20 @@ export const memoryProposalSchema = z
     privacyLevel: memoryPrivacyLevelSchema,
     kind: memoryKindSchema,
     guardianVisibility: memoryGuardianVisibilitySchema,
-    retentionUntil: z.string().trim().min(1).max(64),
+    retentionUntil: z.string().datetime({ offset: true }),
   })
   .strict();
+
+export const memoryProposalSchema = z.discriminatedUnion("operation", [
+  memoryProposalBaseSchema.extend({
+    operation: z.literal("create"),
+    replacesMemoryId: z.null(),
+  }),
+  memoryProposalBaseSchema.extend({
+    operation: z.literal("replace"),
+    replacesMemoryId: stableIdSchema,
+  }),
+]);
 
 export const memoryDecisionSchema = z
   .object({
@@ -189,6 +231,9 @@ export const memoryDecisionSchema = z
         "low_confidence",
         "inferred_not_persisted",
         "sensitive_memory_requires_review",
+        "source_type_not_allowed",
+        "memory_requires_confirmation",
+        "replace_target_not_found",
       ])
       .nullable(),
     recordId: stableIdSchema.nullable(),
@@ -281,6 +326,24 @@ export const companionInputSchema = z
     type: z.enum(["choice", "verified_transcript"]),
     text: z.string().trim().min(1).max(800),
     confidence: z.number().min(0).max(1).optional(),
+    confirmedByChild: z.boolean(),
+  })
+  .strict();
+
+export const capabilitySnapshotSchema = z
+  .object({
+    camera: z.boolean(),
+    microphone: z.boolean(),
+    location: z.boolean(),
+    network: z.boolean(),
+    knowledgeRetrieval: z.boolean(),
+    memory: z.boolean(),
+  })
+  .strict();
+
+export const interactionContextSchema = z
+  .object({
+    isPublic: z.boolean(),
   })
   .strict();
 
@@ -297,14 +360,22 @@ export const companionReplyRequestSchema = z
     input: companionInputSchema,
     facts: z.array(contentFactSchema).max(20),
     personality: personalityStateSchema,
-    reportedSafetyCode: safetyCodeSchema.default("none"),
+    interaction: interactionContextSchema,
+    capabilities: capabilitySnapshotSchema,
+    reportedSafetyCode: safetyCodeSchema,
   })
   .strict();
 
-export const companionKnowledgeStatusSchema = z.enum([
-  "grounded",
-  "unknown",
-  "not_needed",
+export const companionKnowledgeStatusSchema = z.enum(["K0", "K1", "K2", "K3", "K4"]);
+
+export const emotionStateSchema = z.enum([
+  "initial_awakening",
+  "curious",
+  "surprised",
+  "quiet_companionship",
+  "confused_correction",
+  "focused_guardianship",
+  "reunion",
 ]);
 
 export const companionModelOutputSchema = z
@@ -313,8 +384,10 @@ export const companionModelOutputSchema = z
     speechText: z.string().trim().min(1).max(240),
     knowledgeStatus: companionKnowledgeStatusSchema,
     knowledgeRefs: z.array(stableIdSchema).max(2),
-    memoryRefs: z.array(stableIdSchema).max(3),
-    nextMove: nextMoveSchema,
+    observedEvidenceRefs: z.array(stableIdSchema).max(1),
+    memoryRefs: z.array(stableIdSchema).max(1),
+    primaryMove: primaryMoveSchema,
+    emotionState: emotionStateSchema,
     memoryProposal: memoryProposalSchema.nullable(),
     safety: safetySchema,
     embodiment: embodimentCommandSchema,
@@ -327,6 +400,21 @@ export const companionResultSchema = companionModelOutputSchema.extend({
   providerName: z.string().trim().min(1).max(80),
   promptVersion: z.string().trim().min(1).max(80),
   memoryDecision: memoryDecisionSchema,
+  sourceTrace: z
+    .array(
+      z
+        .object({
+          factId: stableIdSchema,
+          sourceId: stableIdSchema,
+          title: z.string().trim().min(1).max(240),
+          url: z.string().url().max(500),
+          verifiedAt: z.string().datetime({ offset: true }),
+          knowledgeVersion: stableIdSchema,
+        })
+        .strict(),
+    )
+    .max(2),
+  capabilityCheck: capabilitySnapshotSchema,
 });
 
 export const modelDraftOutputSchema = z
@@ -335,7 +423,7 @@ export const modelDraftOutputSchema = z
     speechText: z.string().trim().min(1).max(160),
     evidenceRefs: z.array(stableIdSchema).max(3),
     factRefs: z.array(stableIdSchema).max(1),
-    nextMove: nextMoveSchema,
+    primaryMove: primaryMoveSchema,
     memoryCandidate: memoryCandidateSchema.nullable(),
     safety: safetySchema,
   })
@@ -354,6 +442,7 @@ export type SpotFeedbackRequestInput = z.input<
 export type SpotFeedbackRequest = z.output<typeof spotFeedbackRequestSchema>;
 export type Evidence = z.infer<typeof evidenceSchema>;
 export type ContentFact = z.infer<typeof contentFactSchema>;
+export type SafetyLevel = z.infer<typeof safetyLevelSchema>;
 export type SafetyCode = z.infer<typeof safetyCodeSchema>;
 export type ModelDraftOutput = z.infer<typeof modelDraftOutputSchema>;
 export type AgentResult = z.infer<typeof agentResultSchema>;
@@ -365,6 +454,7 @@ export type PersonalityDeltaProposal = z.infer<
   typeof personalityDeltaProposalSchema
 >;
 export type EmbodimentCommand = z.infer<typeof embodimentCommandSchema>;
+export type CapabilitySnapshot = z.infer<typeof capabilitySnapshotSchema>;
 export type CompanionReplyRequestInput = z.input<
   typeof companionReplyRequestSchema
 >;

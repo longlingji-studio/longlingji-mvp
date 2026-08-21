@@ -21,9 +21,9 @@ function buildDevelopmentDraft(context: SpotModelContext): ModelDraftOutput {
     speechText: "我注意到你发现了两只铜狮脚下不一样。要不要再看一眼？",
     evidenceRefs: [evidence.id],
     factRefs: [fact.id],
-    nextMove: "invite",
+    primaryMove: "invite",
     memoryCandidate: null,
-    safety: { level: "none", code: "none" },
+    safety: { level: "S0", code: "none" },
   };
 }
 
@@ -40,12 +40,14 @@ export function createDevelopmentProvider(): MockProvider {
         return {
           scene: "companion_reply",
           speechText: "这个我还不确定，我们可以一起看看。",
-          knowledgeStatus: "unknown",
+          knowledgeStatus: "K3",
           knowledgeRefs: [],
+          observedEvidenceRefs: [],
           memoryRefs: [],
-          nextMove: "invite",
+          primaryMove: "invite",
+          emotionState: "curious",
           memoryProposal: null,
-          safety: { level: "none", code: "none" },
+          safety: { level: "S0", code: "none" },
           embodiment: {
             state: "speaking",
             emotionId: "curious",
@@ -64,12 +66,14 @@ export function createDevelopmentProvider(): MockProvider {
           memory === undefined
             ? "我知道一点这个，我们可以一起看看。"
             : "我记得这段共同经历。你还想继续看看吗？",
-        knowledgeStatus: "grounded",
+        knowledgeStatus: "K0",
         knowledgeRefs: [fact.id],
+        observedEvidenceRefs: [],
         memoryRefs: memory === undefined ? [] : [memory.id],
-        nextMove: "invite",
+        primaryMove: "invite",
+        emotionState: memory === undefined ? "curious" : "reunion",
         memoryProposal: null,
-        safety: { level: "none", code: "none" },
+        safety: { level: "S0", code: "none" },
         embodiment: {
           state: "speaking",
           emotionId: "curious",

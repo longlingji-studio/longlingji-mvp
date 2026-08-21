@@ -15,5 +15,6 @@ export * from "./providers/openai-compatible-provider.js";
 export * from "./fixtures/taihemen-bronze-lions.js";
 export * from "./fixtures/companion-reply.js";
 export * from "./fixtures/journey-catalog.js";
+export * from "./fixtures/yuanlong-acceptance.js";
 export * from "./journey.js";
 export * from "./quest-progress.js";

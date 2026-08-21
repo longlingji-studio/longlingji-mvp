@@ -1,4 +1,6 @@
 import type {
+  CapabilitySnapshot,
+  CompanionReplyRequest,
   MemoryRecord,
   PersonalityState,
   ContentFact,
@@ -41,17 +43,20 @@ export interface CompanionModelContext {
   readonly householdId: string;
   readonly childProfileId: string;
   readonly characterInstanceId: string;
-  readonly childAgeBand: SpotFeedbackRequest["childAgeBand"];
+  readonly childAgeBand: CompanionReplyRequest["childAgeBand"];
   readonly locale: string;
   readonly input: {
     readonly evidenceId: string;
     readonly type: "choice" | "verified_transcript";
     readonly text: string;
     readonly confidence?: number;
+    readonly confirmedByChild: boolean;
   };
   readonly facts: readonly ModelFact[];
   readonly memories: readonly MemoryRecord[];
   readonly personality: PersonalityState;
+  readonly interaction: CompanionReplyRequest["interaction"];
+  readonly capabilities: CapabilitySnapshot;
 }
 
 function toModelFact(fact: ContentFact): ModelFact | null {
